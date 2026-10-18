@@ -1,4 +1,4 @@
-```yaml
+
 name: Build Bajrang Tally APK
 
 on:
@@ -32,9 +32,10 @@ jobs:
                [ -f "$ROOT/settings.gradle.kts" ]; }; then
             PROJECT="$ROOT"
           else
-            # Prefer the fixed source ZIP; use the other ZIP only as fallback.
+            # Prefer the fixed source ZIP.
             ZIP="$ROOT/BAJRANG-TALLY-fixed-source.zip"
 
+            # Fall back to the original project ZIP if needed.
             if [ ! -s "$ZIP" ]; then
               ZIP="$(find "$ROOT" -maxdepth 1 -type f \
                 -iname 'BajrangTally*.zip' \
@@ -49,7 +50,6 @@ jobs:
             fi
 
             echo "Using source ZIP: $ZIP"
-
             mkdir -p "$DEST"
             unzip -oq "$ZIP" -d "$DEST"
 
@@ -97,7 +97,6 @@ jobs:
             exit 1
           fi
 
-          echo "SDK=$SDK"
           echo "manager=$MANAGER" >> "$GITHUB_OUTPUT"
 
       - name: Accept Android SDK licenses
@@ -106,7 +105,6 @@ jobs:
           SDKMANAGER: ${{ steps.sdk.outputs.manager }}
         run: |
           set -euo pipefail
-
           set +o pipefail
           yes | "$SDKMANAGER" --licenses
           RESULT=${PIPESTATUS[1]}
@@ -140,7 +138,6 @@ jobs:
           fi
 
           echo "Installing Android platform $COMPILE_SDK"
-
           "$SDKMANAGER" --install \
             "platform-tools" \
             "platforms;android-$COMPILE_SDK"
@@ -168,7 +165,6 @@ jobs:
             exit 1
           fi
 
-          echo "APK verification:"
           ls -lh "$APK"
           sha256sum "$APK"
 
@@ -179,4 +175,4 @@ jobs:
           path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
-```
+          
