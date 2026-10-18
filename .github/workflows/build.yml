@@ -1,4 +1,4 @@
-
+```yaml
 name: Build Bajrang Tally APK
 
 on:
@@ -21,23 +21,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           ROOT="$GITHUB_WORKSPACE"
           DEST="$RUNNER_TEMP/bajrang-project"
           PROJECT=""
 
+          # Prefer a directly uploaded Android project.
           if [ -d "$ROOT/app" ] && \
              { [ -f "$ROOT/settings.gradle" ] || \
                [ -f "$ROOT/settings.gradle.kts" ]; }; then
             PROJECT="$ROOT"
           else
-            ZIP="$(find "$ROOT" -maxdepth 1 -type f \
-              -iname 'BajrangTally*.zip' -print -quit)"
+            # Prefer the fixed source ZIP; use the other ZIP only as fallback.
+            ZIP="$ROOT/BAJRANG-TALLY-fixed-source.zip"
 
-            if [ -z "$ZIP" ]; then
-              echo "::error::BajrangTally ZIP not found."
+            if [ ! -s "$ZIP" ]; then
+              ZIP="$(find "$ROOT" -maxdepth 1 -type f \
+                -iname 'BajrangTally*.zip' \
+                ! -iname 'BAJRANG-TALLY-fixed-source.zip' \
+                -print | sort | head -n 1)"
+            fi
+
+            if [ -z "$ZIP" ] || [ ! -s "$ZIP" ]; then
+              echo "::error::Android source ZIP not found."
               ls -la "$ROOT"
               exit 1
             fi
+
+            echo "Using source ZIP: $ZIP"
 
             mkdir -p "$DEST"
             unzip -oq "$ZIP" -d "$DEST"
@@ -157,6 +168,7 @@ jobs:
             exit 1
           fi
 
+          echo "APK verification:"
           ls -lh "$APK"
           sha256sum "$APK"
 
@@ -167,4 +179,4 @@ jobs:
           path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
-          
+```
