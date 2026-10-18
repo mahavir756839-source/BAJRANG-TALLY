@@ -10,10 +10,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Show files
+        run: ls -la
+
       - name: Unzip project
         run: |
-          ZIP=$(ls BajrangTally-Android-Project*.zip | head -n 1)
+          ZIP=$(find . -maxdepth 1 -name 'BajrangTally*.zip' | head -n 1)
+          echo "Zip file mili: $ZIP"
+          test -n "$ZIP"
           unzip -oq "$ZIP" -d .
+          ls -la BajrangTally
 
       - uses: actions/setup-java@v4
         with:
@@ -28,7 +34,7 @@ jobs:
 
       - name: Build APK
         working-directory: BajrangTally
-        run: gradle :app:assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
