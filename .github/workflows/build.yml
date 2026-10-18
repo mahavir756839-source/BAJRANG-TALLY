@@ -15,41 +15,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Show repository files
+        run: ls -la
+
       - name: Find and prepare Android project
         id: project
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ -f "$GITHUB_WORKSPACE/settings.gradle.kts" ] &&
-             [ -d "$GITHUB_WORKSPACE/app" ]; then
-            PROJECT_DIR="$GITHUB_WORKSPACE"
+          ROOT="$GITHUB_WORKSPACE"
+          PROJECT_DIR=""
+
+          if [ -f "$ROOT/settings.gradle.kts" ] && [ -d "$ROOT/app" ]; then
+            PROJECT_DIR="$ROOT"
+          elif [ -f "$ROOT/settings.gradle" ] && [ -d "$ROOT/app" ]; then
+            PROJECT_DIR="$ROOT"
           else
-            ZIP="$(find "$GITHUB_WORKSPACE" -maxdepth 1 \
-              -type f -iname 'BajrangTally*.zip' -print -quit)"
+            ZIP="$(find "$ROOT" -maxdepth 1 -type f \
+              -iname 'BajrangTally*.zip' -print -quit)"
 
             if [ -z "$ZIP" ]; then
-              echo "::error::BajrangTally ZIP or Android project files not found."
-              ls -la "$GITHUB_WORKSPACE"
+              echo "::error::BajrangTally ZIP not found in repository root."
+              find "$ROOT" -maxdepth 2 -type f | head -100
               exit 1
             fi
 
-            DEST="$RUNNER_TEMP/bajrang-project"
+            DEST="$RUNNER_TEMP/bajrang-tally-project"
             mkdir -p "$DEST"
             unzip -oq "$ZIP" -d "$DEST"
 
             PROJECT_DIR="$(find "$DEST" -type f \
-              -name settings.gradle.kts -print -quit | xargs -r dirname)"
+              \( -name settings.gradle.kts -o -name settings.gradle \) \
+              -print -quit | xargs -r dirname)"
 
-            if [ -z "$PROJECT_DIR" ] ||
-               [ ! -d "$PROJECT_DIR/app" ]; then
-              echo "::error::Android project folder or app module not found."
-              find "$DEST" -maxdepth 4 -type f | head -100
+            if [ -z "$PROJECT_DIR" ] || [ ! -d "$PROJECT_DIR/app" ]; then
+              echo "::error::Could not find Gradle Android app module in ZIP."
+              find "$DEST" -maxdepth 5 -type f | head -150
               exit 1
             fi
           fi
 
-          echo "Project directory: $PROJECT_DIR"
+          echo "Android project: $PROJECT_DIR"
           echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
           ls -la "$PROJECT_DIR"
 
@@ -61,6 +68,28 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found at $SDKMANAGER"
+            find "$ANDROID_HOME/cmdline-tools" -maxdepth 3 -type f \
+              -name sdkmanager 2>/dev/null || true
+            exit 1
+          fi
+
+          set +o pipefail
+          yes | "$SDKMANAGER" --licenses
+          RESULT=${PIPESTATUS[1]}
+          set -o pipefail
+          if [ "$RESULT" -ne 0 ]; then
+            echo "::error::Android SDK license acceptance failed."
+            exit "$RESULT"
+          fi
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -78,7 +107,14 @@ jobs:
         run: |
           set -euo pipefail
           APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
+
+          if [ ! -s "$APK" ]; then
+            echo "::error::APK was not generated."
+            find "$PROJECT_DIR/app/build/outputs" -maxdepth 5 -type f \
+              2>/dev/null || true
+            exit 1
+          fi
+
           ls -lh "$APK"
           sha256sum "$APK"
 
